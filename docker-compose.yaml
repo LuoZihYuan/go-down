@@ -1,0 +1,164 @@
+name: go-down
+
+services:
+  # =============================================================================
+  # API Gateway
+  # =============================================================================
+  api-gateway-dev:
+    profiles: ["dev"]
+    container_name: go-down-api-gateway-dev
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+      target: api_gateway_dev
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/tmp
+    ports:
+      - "8080:8080"
+    environment:
+      - GIN_MODE=debug
+      - ORDER_SERVICE_URL=http://order-service-dev:8081
+    networks:
+      - go-down-network
+    depends_on:
+      - order-service-dev
+
+  api-gateway-stage:
+    profiles: ["stage"]
+    container_name: go-down-api-gateway-stage
+    image: go-down-api-gateway:stage
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+      target: api_gateway_stage
+    platform: linux/amd64
+    ports:
+      - "8080:8080"
+    networks:
+      - go-down-network
+    depends_on:
+      - order-service-stage
+
+  api-gateway-prod:
+    profiles: ["prod"]
+    container_name: go-down-api-gateway-prod
+    image: go-down-api-gateway:prod
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+      target: api_gateway_prod
+    platform: linux/amd64
+    ports:
+      - "8080:8080"
+    networks:
+      - go-down-network
+    depends_on:
+      - order-service-prod
+
+  # =============================================================================
+  # Order Service
+  # =============================================================================
+  order-service-dev:
+    profiles: ["dev"]
+    container_name: go-down-order-service-dev
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+      target: order_service_dev
+    volumes:
+      - ./services/order-service:/app
+      - /app/tmp
+    ports:
+      - "8081:8081"
+    environment:
+      - GIN_MODE=debug
+      - PAYMENT_SERVICE_URL=http://payment-service-dev:8082
+    networks:
+      - go-down-network
+    depends_on:
+      - payment-service-dev
+
+  order-service-stage:
+    profiles: ["stage"]
+    container_name: go-down-order-service-stage
+    image: go-down-order-service:stage
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+      target: order_service_stage
+    platform: linux/amd64
+    ports:
+      - "8081:8081"
+    networks:
+      - go-down-network
+    depends_on:
+      - payment-service-stage
+
+  order-service-prod:
+    profiles: ["prod"]
+    container_name: go-down-order-service-prod
+    image: go-down-order-service:prod
+    build:
+      context: ./services/order-service
+      dockerfile: Dockerfile
+      target: order_service_prod
+    platform: linux/amd64
+    ports:
+      - "8081:8081"
+    networks:
+      - go-down-network
+    depends_on:
+      - payment-service-prod
+
+  # =============================================================================
+  # Payment Service
+  # =============================================================================
+  payment-service-dev:
+    profiles: ["dev"]
+    container_name: go-down-payment-service-dev
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+      target: payment_service_dev
+    volumes:
+      - ./services/payment-service:/app
+      - /app/tmp
+    ports:
+      - "8082:8082"
+    environment:
+      - GIN_MODE=debug
+    networks:
+      - go-down-network
+
+  payment-service-stage:
+    profiles: ["stage"]
+    container_name: go-down-payment-service-stage
+    image: go-down-payment-service:stage
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+      target: payment_service_stage
+    platform: linux/amd64
+    ports:
+      - "8082:8082"
+    networks:
+      - go-down-network
+
+  payment-service-prod:
+    profiles: ["prod"]
+    container_name: go-down-payment-service-prod
+    image: go-down-payment-service:prod
+    build:
+      context: ./services/payment-service
+      dockerfile: Dockerfile
+      target: payment_service_prod
+    platform: linux/amd64
+    ports:
+      - "8082:8082"
+    networks:
+      - go-down-network
+
+networks:
+  go-down-network:
+    driver: bridge
