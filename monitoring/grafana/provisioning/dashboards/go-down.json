@@ -1,0 +1,300 @@
+{
+  "title": "Go-Down Resilience Demo",
+  "tags": ["go-down", "resilience", "microservices"],
+  "timezone": "browser",
+  "editable": true,
+  "refresh": "5s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"api-gateway\"}[1m])) by (service)",
+          "legendFormat": "API Gateway",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{job=\"order-service\"}[1m])) by (service)",
+          "legendFormat": "Order Service",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{job=\"payment-service\"}[1m])) by (service)",
+          "legendFormat": "Payment Service",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "req/s",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "pointSize": 5,
+            "showPoints": "never"
+          },
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m])) by (service) / sum(rate(http_requests_total[1m])) by (service) * 100",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "Error %",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 10}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Response Time - p95 (seconds)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"api-gateway\"}[1m])) by (le, service))",
+          "legendFormat": "API Gateway p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"order-service\"}[1m])) by (le, service))",
+          "legendFormat": "Order Service p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"payment-service\"}[1m])) by (le, service))",
+          "legendFormat": "Payment Service p95",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "seconds",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineWidth": 2
+          },
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "In-Flight Requests",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "http_requests_in_flight",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "requests",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Circuit Breaker State",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "circuit_breaker_state",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "CLOSED", "color": "green"}}},
+            {"type": "value", "options": {"1": {"text": "OPEN", "color": "red"}}},
+            {"type": "value", "options": {"2": {"text": "HALF-OPEN", "color": "yellow"}}}
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Circuit Breaker Failures",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 16},
+      "targets": [
+        {
+          "expr": "rate(circuit_breaker_failures_total[1m])",
+          "legendFormat": "{{service}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "failures/s",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Bulkhead Active Requests",
+      "type": "timeseries",
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 16},
+      "targets": [
+        {
+          "expr": "bulkhead_active",
+          "legendFormat": "{{pool}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {
+            "axisCenteredZero": false,
+            "axisLabel": "active",
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "lineWidth": 2
+          },
+          "unit": "short",
+          "max": 10
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Bulkhead Rejected Requests",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 22},
+      "targets": [
+        {
+          "expr": "sum(rate(bulkhead_rejected_total[5m])) by (pool)",
+          "legendFormat": "{{pool}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 10}
+            ]
+          },
+          "unit": "reqps"
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": ["lastNotNull"]
+        },
+        "textMode": "value_and_name",
+        "colorMode": "background",
+        "graphMode": "area"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Total Requests by Status",
+      "type": "piechart",
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 22},
+      "targets": [
+        {
+          "expr": "sum(increase(http_requests_total[5m])) by (status)",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {"displayMode": "table", "placement": "right"},
+        "pieType": "pie",
+        "tooltip": {"mode": "single"}
+      }
+    }
+  ]
+}

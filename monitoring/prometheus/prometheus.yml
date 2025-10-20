@@ -1,0 +1,49 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'go-down-dev'
+    environment: 'dev'
+
+# Load alert rules
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # API Gateway metrics
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway-dev:8080']
+        labels:
+          service: 'api-gateway'
+          layer: 'gateway'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Order Service metrics
+  - job_name: 'order-service'
+    static_configs:
+      - targets: ['order-service-dev:8081']
+        labels:
+          service: 'order-service'
+          layer: 'business'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Payment Service metrics
+  - job_name: 'payment-service'
+    static_configs:
+      - targets: ['payment-service-dev:8082']
+        labels:
+          service: 'payment-service'
+          layer: 'integration'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

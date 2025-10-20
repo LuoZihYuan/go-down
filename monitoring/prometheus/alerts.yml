@@ -1,0 +1,75 @@
+groups:
+  - name: go-down-alerts
+    interval: 30s
+    rules:
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_requests_total[5m])) by (service)
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "{{ $labels.service }} has error rate above 5% (current: {{ $value | humanizePercentage }})"
+
+      # Circuit breaker opened alert
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state{state="open"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker opened for {{ $labels.service }}"
+          description: "Circuit breaker for {{ $labels.service }} has been open for more than 1 minute"
+
+      # Bulkhead capacity alert
+      - alert: BulkheadNearCapacity
+        expr: |
+          (
+            bulkhead_active / 
+            (bulkhead_active + on(pool) group_left bulkhead_rejected_total)
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bulkhead {{ $labels.pool }} near capacity"
+          description: "Bulkhead {{ $labels.pool }} is at {{ $value | humanizePercentage }} capacity"
+
+      # High response time alert
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (service, le)
+          ) > 3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time on {{ $labels.service }}"
+          description: "{{ $labels.service }} p95 response time is {{ $value }}s (threshold: 3s)"
+
+      # Service down alert
+      - alert: ServiceDown
+        expr: up{job=~"api-gateway|order-service|payment-service"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service {{ $labels.job }} is down"
+          description: "{{ $labels.job }} has been unreachable for more than 1 minute"
+
+      # Too many requests in flight
+      - alert: TooManyRequestsInFlight
+        expr: http_requests_in_flight > 100
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Too many concurrent requests on {{ $labels.service }}"
+          description: "{{ $labels.service }} has {{ $value }} requests in flight"
