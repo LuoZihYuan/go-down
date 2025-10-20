@@ -57,7 +57,7 @@ type CircuitBreaker[T any] struct {
 // failureThreshold: number of failures in the window before opening (e.g., 5)
 // timeout: how long to wait before half-open (e.g., 30s)
 func NewCircuitBreaker[T any](serviceName string, failureThreshold int, timeout time.Duration) *CircuitBreaker[T] {
-	return &CircuitBreaker[T]{
+	cb := &CircuitBreaker[T]{
 		state:             StateClosed,
 		failureTimestamps: make([]time.Time, 0),
 		failureThreshold:  failureThreshold,
@@ -66,6 +66,11 @@ func NewCircuitBreaker[T any](serviceName string, failureThreshold int, timeout 
 		timeout:           timeout,
 		serviceName:       serviceName,
 	}
+
+	// Initialize metric to CLOSED state (0) so it shows up in Grafana
+	circuitBreakerState.WithLabelValues(serviceName).Set(0)
+
+	return cb
 }
 
 // Execute runs the provided function with circuit breaker protection

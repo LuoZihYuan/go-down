@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"order-service/internal/models"
+	"github.com/LuoZihYuan/go-down/services/order-service/internal/models"
 )
 
 // PaymentClient handles communication with the payment service

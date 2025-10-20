@@ -38,10 +38,16 @@ type Bulkhead struct {
 
 // NewBulkhead creates a new bulkhead with the specified capacity
 func NewBulkhead(poolName string, maxConcurrent int) *Bulkhead {
-	return &Bulkhead{
+	b := &Bulkhead{
 		semaphore: make(chan struct{}, maxConcurrent),
 		poolName:  poolName,
 	}
+
+	// Initialize metrics to 0 so they show up in Grafana immediately
+	bulkheadActive.WithLabelValues(poolName).Set(0)
+	bulkheadRejected.WithLabelValues(poolName).Add(0)
+
+	return b
 }
 
 // Execute runs the provided function with bulkhead protection

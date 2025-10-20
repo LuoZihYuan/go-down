@@ -39,26 +39,25 @@ func NewPaymentClient(baseURL string) *PaymentClient {
 // ProcessPayment sends a payment request to the payment service with resilience patterns
 func (c *PaymentClient) ProcessPayment(ctx context.Context, req *models.PaymentRequest) (*models.PaymentResponse, error) {
 	var result *models.PaymentResponse
+	var callErr error
 
-	// Execute with circuit breaker protection
-	result, err := c.circuitBreaker.Execute(func() (*models.PaymentResponse, error) {
-		// Execute with bulkhead protection
-		var callErr error
-		bulkheadErr := c.bulkhead.TryExecute(func() error {
-			result, callErr = c.makePaymentCall(ctx, req)
-			return callErr
+	// Execute with bulkhead protection FIRST
+	// This ensures bulkhead rejections don't count as circuit breaker failures
+	bulkheadErr := c.bulkhead.TryExecute(func() error {
+		// Execute with circuit breaker protection INSIDE bulkhead
+		result, callErr = c.circuitBreaker.Execute(func() (*models.PaymentResponse, error) {
+			return c.makePaymentCall(ctx, req)
 		})
-
-		// If bulkhead rejected, return that error
-		if bulkheadErr != nil {
-			return nil, bulkheadErr
-		}
-
-		// Return the actual call result
-		return result, callErr
+		return callErr
 	})
 
-	return result, err
+	// If bulkhead rejected, return that error directly
+	if bulkheadErr != nil {
+		return nil, bulkheadErr
+	}
+
+	// Return the result from the circuit breaker/HTTP call
+	return result, callErr
 }
 
 // makePaymentCall performs the actual HTTP call
