@@ -25,20 +25,17 @@ func main() {
 		log.Fatal("PAYMENT_SERVICE_URL environment variable is required")
 	}
 
-	// Initialize clients
-	paymentClient := client.NewPaymentClient(paymentServiceURL)
-
-	// Initialize handlers
-	rootHandler := handlers.NewRootHandler()
-	orderHandler := handlers.NewOrderHandler(paymentClient)
-
 	// Setup router
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
 	router.Use(middleware.MetricsMiddleware())
 
+	// Initialize clients
+	paymentClient := client.NewPaymentClient(paymentServiceURL)
+
 	// Root group
+	rootHandler := handlers.NewRootHandler()
 	root := router.Group("/")
 	{
 		root.GET("/health", rootHandler.Health)
@@ -49,6 +46,7 @@ func main() {
 	registerSwagger(router)
 
 	// API group
+	orderHandler := handlers.NewOrderHandler(paymentClient)
 	api := router.Group("/api")
 	{
 		api.POST("/orders", orderHandler.CreateOrder)
