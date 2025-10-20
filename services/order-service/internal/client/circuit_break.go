@@ -40,28 +40,31 @@ var (
 	ErrCircuitOpen = errors.New("circuit breaker is open")
 )
 
-// CircuitBreaker implements the circuit breaker pattern with generics
+// CircuitBreaker implements the circuit breaker pattern with generics and sliding window
 type CircuitBreaker[T any] struct {
-	state            CircuitState
-	failureCount     int
-	failureThreshold int
-	successThreshold int
-	timeout          time.Duration
-	lastFailureTime  time.Time
-	mu               sync.RWMutex
-	serviceName      string
+	state             CircuitState
+	failureTimestamps []time.Time
+	failureThreshold  int
+	failureWindow     time.Duration
+	successThreshold  int
+	timeout           time.Duration
+	lastFailureTime   time.Time
+	mu                sync.RWMutex
+	serviceName       string
 }
 
-// NewCircuitBreaker creates a new circuit breaker
-// failureThreshold: number of failures before opening
-// timeout: how long to wait before half-open
+// NewCircuitBreaker creates a new circuit breaker with sliding window
+// failureThreshold: number of failures in the window before opening (e.g., 5)
+// timeout: how long to wait before half-open (e.g., 30s)
 func NewCircuitBreaker[T any](serviceName string, failureThreshold int, timeout time.Duration) *CircuitBreaker[T] {
 	return &CircuitBreaker[T]{
-		state:            StateClosed,
-		failureThreshold: failureThreshold,
-		successThreshold: 1, // One success in half-open moves to closed
-		timeout:          timeout,
-		serviceName:      serviceName,
+		state:             StateClosed,
+		failureTimestamps: make([]time.Time, 0),
+		failureThreshold:  failureThreshold,
+		failureWindow:     10 * time.Second, // 10 second sliding window
+		successThreshold:  1,                // One success in half-open moves to closed
+		timeout:           timeout,
+		serviceName:       serviceName,
 	}
 }
 
@@ -113,23 +116,31 @@ func (cb *CircuitBreaker[T]) canAttempt() bool {
 	}
 }
 
-// recordFailure records a failed attempt
+// recordFailure records a failed attempt with timestamp
 func (cb *CircuitBreaker[T]) recordFailure() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
-	cb.failureCount++
-	cb.lastFailureTime = time.Now()
+	now := time.Now()
+	cb.failureTimestamps = append(cb.failureTimestamps, now)
+	cb.lastFailureTime = now
 
 	circuitBreakerFailures.WithLabelValues(cb.serviceName).Inc()
 
+	// Clean up old failures outside the window
+	cb.cleanupOldFailures(now)
+
+	// Count failures in the current window
+	failuresInWindow := cb.countFailuresInWindow(now)
+
 	switch cb.state {
 	case StateClosed:
-		if cb.failureCount >= cb.failureThreshold {
+		if failuresInWindow >= cb.failureThreshold {
 			cb.setState(StateOpen)
 		}
 
 	case StateHalfOpen:
+		// Any failure in half-open state reopens the circuit
 		cb.setState(StateOpen)
 	}
 }
@@ -141,12 +152,38 @@ func (cb *CircuitBreaker[T]) recordSuccess() {
 
 	switch cb.state {
 	case StateHalfOpen:
-		cb.failureCount = 0
+		// Success in half-open moves to closed
+		cb.failureTimestamps = make([]time.Time, 0) // Reset failure history
 		cb.setState(StateClosed)
 
 	case StateClosed:
-		cb.failureCount = 0
+		// Success in closed state - no action needed
+		// Don't reset failures as we use sliding window
 	}
+}
+
+// countFailuresInWindow counts failures within the sliding window
+func (cb *CircuitBreaker[T]) countFailuresInWindow(now time.Time) int {
+	windowStart := now.Add(-cb.failureWindow)
+	count := 0
+	for _, ts := range cb.failureTimestamps {
+		if ts.After(windowStart) {
+			count++
+		}
+	}
+	return count
+}
+
+// cleanupOldFailures removes failure timestamps outside the sliding window
+func (cb *CircuitBreaker[T]) cleanupOldFailures(now time.Time) {
+	windowStart := now.Add(-cb.failureWindow)
+	validFailures := make([]time.Time, 0)
+	for _, ts := range cb.failureTimestamps {
+		if ts.After(windowStart) {
+			validFailures = append(validFailures, ts)
+		}
+	}
+	cb.failureTimestamps = validFailures
 }
 
 // setState updates the circuit breaker state and metrics
